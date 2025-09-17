@@ -1,0 +1,9 @@
+.env
+__pycache__/
+.config/
+.local/
+attached_assets/
+CarFin_Python_Complete.tar.gz
+logs.log
+uv.lock
+node_modules/

@@ -1,0 +1,162 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { CarFinderHome } from '@/components/car-finder/CarFinderHome';
+import { SearchingPhase } from '@/components/car-finder/SearchingPhase';
+import { InteractiveResults } from '@/components/car-finder/InteractiveResults';
+import { AdvancedComparison } from '@/components/car-finder/AdvancedComparison';
+import { UserInput, RecommendationResult } from '@/types';
+
+type UserJourneyPhase = 'initial' | 'searching' | 'results' | 'comparison' | 'decision';
+
+export default function HomePage() {
+  const [journeyPhase, setJourneyPhase] = useState<UserJourneyPhase>('initial');
+  const [userInput, setUserInput] = useState<UserInput | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationResult | null>(null);
+  const [selectedCars, setSelectedCars] = useState<string[]>([]);
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`);
+
+  // 사용자 여정 진행 관리
+  const handleInitialSubmit = async (input: UserInput) => {
+    const enrichedInput = { ...input, sessionId };
+    setUserInput(enrichedInput);
+    setJourneyPhase('searching');
+  };
+
+  const handleRecommendationsReady = (results: RecommendationResult) => {
+    setRecommendations(results);
+    setJourneyPhase('results');
+  };
+
+  const handleCarSelection = (carIds: string[]) => {
+    setSelectedCars(carIds);
+    if (carIds.length >= 2) {
+      setJourneyPhase('comparison');
+    }
+  };
+
+  const handleFinalDecision = () => {
+    setJourneyPhase('decision');
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      {/* 진행률 표시 */}
+      <div className="fixed top-0 left-0 w-full bg-slate-900/90 backdrop-blur-xl border-b border-white/10 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <JourneyProgressBar phase={journeyPhase} />
+        </div>
+      </div>
+
+      <div className="pt-20">
+        {/* Phase 1: 초기 입력 */}
+        {journeyPhase === 'initial' && (
+          <CarFinderHome onSubmit={handleInitialSubmit} />
+        )}
+
+        {/* Phase 2: AI 분석 중 */}
+        {journeyPhase === 'searching' && userInput && (
+          <SearchingPhase
+            searchData={userInput}
+            onResultsReady={handleRecommendationsReady}
+          />
+        )}
+
+        {/* Phase 3: 추천 결과 상호작용 */}
+        {journeyPhase === 'results' && recommendations && (
+          <InteractiveResults
+            recommendations={recommendations}
+            onCarSelection={handleCarSelection}
+            sessionId={sessionId}
+          />
+        )}
+
+        {/* Phase 4: 고급 비교 및 결정 지원 */}
+        {journeyPhase === 'comparison' && selectedCars.length >= 2 && (
+          <AdvancedComparison
+            selectedCarIds={selectedCars}
+            recommendations={recommendations}
+            onFinalDecision={handleFinalDecision}
+          />
+        )}
+
+        {/* Phase 5: 최종 결정 완료 */}
+        {journeyPhase === 'decision' && (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center max-w-2xl mx-auto px-4">
+              <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="text-4xl">🎉</div>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                차량 선택이 완료되었습니다!
+              </h2>
+              <p className="text-gray-600 mb-8">
+                AI 멀티 에이전트가 분석한 결과와 당신의 선택이 완벽하게 일치했습니다.
+                이제 딜러와 연락하여 구매 과정을 진행하세요.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => {
+                    setJourneyPhase('initial');
+                    setUserInput(null);
+                    setRecommendations(null);
+                    setSelectedCars([]);
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  새로운 검색
+                </button>
+                <button className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                  딜러 연락하기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 사용자 여정 진행률 표시 컴포넌트
+function JourneyProgressBar({ phase }: { phase: UserJourneyPhase }) {
+  const phases = [
+    { key: 'initial', label: '조건 입력', icon: '🔍' },
+    { key: 'searching', label: 'AI 분석', icon: '🤖' },
+    { key: 'results', label: '추천 결과', icon: '🚗' },
+    { key: 'comparison', label: '비교 분석', icon: '⚖️' },
+    { key: 'decision', label: '최종 결정', icon: '✅' }
+  ];
+
+  const currentIndex = phases.findIndex(p => p.key === phase);
+
+  return (
+    <div className="flex items-center justify-between max-w-3xl mx-auto">
+      {phases.map((phaseItem, index) => (
+        <div key={phaseItem.key} className="flex items-center">
+          <div className={`
+            flex items-center justify-center w-12 h-12 rounded-full text-lg font-medium transition-all duration-500
+            ${index <= currentIndex
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/25 scale-110'
+              : 'bg-white/10 text-gray-400 border border-white/20'
+            }
+          `}>
+            {phaseItem.icon}
+          </div>
+          <div className={`ml-3 text-sm font-medium transition-all duration-300 ${
+            index <= currentIndex ? 'text-cyan-300' : 'text-gray-500'
+          }`}>
+            {phaseItem.label}
+          </div>
+          {index < phases.length - 1 && (
+            <div className={`w-16 h-1 mx-6 rounded-full transition-all duration-500 ${
+              index < currentIndex
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/25'
+                : 'bg-white/10'
+            }`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

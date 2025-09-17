@@ -1,0 +1,600 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { CarFinderHome } from '@/components/car-finder/CarFinderHome';
+import { SearchingPhase } from '@/components/car-finder/SearchingPhase';
+import { InteractiveResults } from '@/components/car-finder/InteractiveResults';
+import { AdvancedComparison } from '@/components/car-finder/AdvancedComparison';
+import { UserInput, RecommendationResult } from '@/types';
+
+type UserJourneyPhase = 'initial' | 'searching' | 'results' | 'comparison' | 'decision';
+
+export default function HomePage() {
+  const [journeyPhase, setJourneyPhase] = useState<UserJourneyPhase>('initial');
+  const [userInput, setUserInput] = useState<UserInput | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationResult | null>(null);
+  const [selectedCars, setSelectedCars] = useState<string[]>([]);
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+  
+  // API 연동 함수
+  const callConsultationAPI = async (message: string): Promise<ConsultationResponse> => {
+    const apiUrl = typeof window !== 'undefined'
+      ? `http://${window.location.hostname}:8000/api/recommend`
+      : 'http://localhost:8000/api/recommend';
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: message,
+        user_id: userId
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
+  };
+  
+  // 상담 시작 함수
+  const startConsultation = async () => {
+    if (!inputMessage.trim()) {
+      setError('메시지를 입력해주세요.');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    // 사용자 메시지 추가
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: inputMessage,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Reset agent steps
+    const resetSteps = agentSteps.map(step => ({ ...step, status: 'pending' as const }));
+    setAgentSteps(resetSteps);
+    setCurrentStep(0);
+    
+    const originalMessage = inputMessage;
+    setInputMessage('');
+    
+    try {
+      // 단계별 진행 시뮬레이션
+      const updateStep = (stepIndex: number, status: AgentStep['status'], result?: string) => {
+        setAgentSteps(prev => 
+          prev.map((step, index) => 
+            index === stepIndex ? { ...step, status, result } : step
+          )
+        );
+      };
+      
+      // 1단계: 데이터 분석
+      updateStep(0, 'active');
+      setCurrentStep(0);
+      
+      // API 호출
+      const response = await callConsultationAPI(originalMessage);
+      
+      if (response.status === 'error') {
+        throw new Error(response.agent_response || '상담 중 오류가 발생했습니다.');
+      }
+      
+      // 단계별 완료 처리
+      updateStep(0, 'completed', '데이터 분석 완료');
+      setCurrentStep(1);
+      updateStep(1, 'active');
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      updateStep(1, 'completed', '차량 추천 완료');
+      setCurrentStep(2);
+      updateStep(2, 'active');
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      updateStep(2, 'completed', '금융 상담 완료');
+      
+      // AI 응답 메시지 추가
+      const assistantMessage: ChatMessage = {
+        role: 'assistant',
+        content: response.agent_response || response.response || '상담이 완료되었습니다.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // 추천 결과가 있다면 별도 메시지로 추가
+      if (response.ml_recommendations && response.ml_recommendations.length > 0) {
+        const recommendationMessage: ChatMessage = {
+          role: 'system',
+          content: `📋 **추천 차량 목록**\n\n${response.ml_recommendations.map((car: any, index: number) =>
+            `${index + 1}. **${car.make || car.brand} ${car.model}**\n   - 가격: ${car.price?.toLocaleString() || 'N/A'}만원\n   - 연료: ${car.fuel_type || 'N/A'}\n   - 연식: ${car.year || 'N/A'}년\n   - 추천도: ${car.recommendation_score || 'N/A'}%\n`
+          ).join('\n')}`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, recommendationMessage]);
+      }
+      
+    } catch (error) {
+      console.error('Consultation error:', error);
+      setError(error instanceof Error ? error.message : '상담 중 오류가 발생했습니다.');
+      
+      // 에러 발생 시 현재 단계를 에러로 표시
+      setAgentSteps(prev => 
+        prev.map((step, index) => 
+          index === currentStep ? { ...step, status: 'error' } : step
+        )
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 새 상담 시작
+  const resetConsultation = () => {
+    setMessages([]);
+    setAgentSteps(prev => prev.map(step => ({ ...step, status: 'pending' })));
+    setCurrentStep(0);
+    setError(null);
+    setInputMessage('');
+  };
+  
+  // Enter 키로 메시지 전송
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isLoading) {
+        startConsultation();
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full glass-effect z-50 border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
+                <Car className="w-4 h-4 sm:w-6 sm:h-6 text-white" aria-hidden="true" />
+              </div>
+              <span className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+                CarFin AI
+              </span>
+            </div>
+            
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-4">
+              <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                AI 멀티에이전트
+              </Badge>
+              <Button variant="outline" size="sm" className="focus-ring">
+                로그인
+              </Button>
+            </div>
+            
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="focus-ring"
+                aria-expanded={isMobileMenuOpen}
+                aria-label="메뉴 토글"
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-6 h-6" aria-hidden="true" />
+                ) : (
+                  <Menu className="w-6 h-6" aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+          </div>
+          
+          {/* Mobile Navigation Menu */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden absolute top-full left-0 w-full glass-effect border-t border-white/20">
+              <div className="px-4 py-4 space-y-3">
+                <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 w-full justify-center py-2">
+                  AI 멀티에이전트
+                </Badge>
+                <Button 
+                  variant="outline" 
+                  className="w-full focus-ring"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  로그인
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <div className="flex justify-center mb-6">
+              <div className="relative">
+                <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-teal-600 rounded-2xl flex items-center justify-center animate-pulse-glow">
+                  <Sparkles className="w-10 h-10 text-white animate-spin-slow" aria-hidden="true" />
+                </div>
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-white" aria-hidden="true" />
+                </div>
+              </div>
+            </div>
+            
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight">
+              당신만을 위한
+              <br />
+              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-teal-600 bg-clip-text text-transparent animate-pulse">
+                AI 차량 추천
+              </span>
+            </h1>
+            
+            <p className="text-lg sm:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed px-4 sm:px-0">
+              <strong>3개의 전문 AI 에이전트</strong>가 협력하여 데이터 분석부터 차량 추천, 
+              <br />
+              금융 상담까지 원스톱 서비스를 제공합니다. 복잡한 차량 구매, 이제 쉽고 스마트하게!
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    size="lg" 
+                    className="text-base sm:text-lg px-6 py-4 sm:px-8 sm:py-6 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 transform hover:scale-105 button-hover animate-pulse-glow focus-ring w-full sm:w-auto"
+                  >
+                    <Bot className="w-5 h-5 sm:w-6 sm:h-6 mr-2" aria-hidden="true" />
+                    3개 AI 에이전트 상담하기
+                    <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 ml-2" aria-hidden="true" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                  <DialogHeader className="pb-4">
+                    <DialogTitle className="flex items-center gap-2 text-xl">
+                      <Sparkles className="w-7 h-7 text-blue-600" aria-hidden="true" />
+                      AI 멀티에이전트 상담
+                    </DialogTitle>
+                    <DialogDescription className="text-base leading-relaxed">
+                      3개의 전문 AI 에이전트가 협력하여 최적의 차량 구매 솔루션을 제공합니다.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {/* Agent Progress Steps */}
+                  <div className="flex justify-between items-center py-4 border-b">
+                    {agentSteps.map((step, index) => (
+                      <div key={step.id} className="flex items-center flex-1">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                            step.status === 'completed' ? 'bg-green-500 border-green-500 text-white' :
+                            step.status === 'active' ? 'bg-blue-500 border-blue-500 text-white animate-pulse' :
+                            step.status === 'error' ? 'bg-red-500 border-red-500 text-white' :
+                            'bg-gray-100 border-gray-300 text-gray-400'
+                          }`}>
+                            {step.status === 'completed' ? (
+                              <CheckCircle className="w-5 h-5" />
+                            ) : step.status === 'active' ? (
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : step.status === 'error' ? (
+                              <AlertCircle className="w-5 h-5" />
+                            ) : (
+                              <Circle className="w-5 h-5" />
+                            )}
+                          </div>
+                          <p className={`text-xs mt-2 text-center font-medium ${
+                            step.status === 'active' ? 'text-blue-600' :
+                            step.status === 'completed' ? 'text-green-600' :
+                            step.status === 'error' ? 'text-red-600' :
+                            'text-gray-500'
+                          }`}>
+                            {step.name}
+                          </p>
+                        </div>
+                        {index < agentSteps.length - 1 && (
+                          <div className={`flex-1 h-0.5 mx-4 transition-colors duration-300 ${
+                            agentSteps[index + 1].status === 'completed' || agentSteps[index + 1].status === 'active' ? 'bg-blue-500' : 'bg-gray-200'
+                          }`} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Chat Messages */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-lg max-h-96">
+                    {messages.length === 0 ? (
+                      <div className="text-center text-gray-500 py-8">
+                        <Bot className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg font-medium">차량 상담을 시작해보세요</p>
+                        <p className="text-sm mt-2">"3000만원 예산으로 SUV 추천해주세요" 같은 메시지로 시작하세요.</p>
+                      </div>
+                    ) : (
+                      messages.map((message, index) => (
+                        <div key={index} className={`flex ${
+                          message.role === 'user' ? 'justify-end' : 'justify-start'
+                        }`}>
+                          <div className={`max-w-[80%] p-3 rounded-lg whitespace-pre-line ${
+                            message.role === 'user' 
+                              ? 'bg-blue-600 text-white rounded-br-none' 
+                              : message.role === 'system'
+                              ? 'bg-yellow-50 border border-yellow-200 text-gray-800 rounded-bl-none'
+                              : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
+                          }`}>
+                            {message.role === 'assistant' && (
+                              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-blue-600">
+                                <Bot className="w-4 h-4" />
+                                AI 상담사
+                              </div>
+                            )}
+                            {message.role === 'system' && (
+                              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-orange-600">
+                                <Sparkles className="w-4 h-4" />
+                                추천 결과
+                              </div>
+                            )}
+                            <p className="text-sm leading-relaxed">{message.content}</p>
+                            <p className="text-xs mt-2 opacity-70">
+                              {message.timestamp.toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white border border-gray-200 p-3 rounded-lg rounded-bl-none">
+                          <div className="flex items-center gap-2 mb-2 text-sm font-medium text-blue-600">
+                            <Bot className="w-4 h-4" />
+                            AI 상담사
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            상담 중입니다...
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+                  
+                  {/* Error Message */}
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        {error}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Input Area */}
+                  <div className="flex gap-2 pt-4">
+                    <Input
+                      ref={inputRef}
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyDown={handleKeyPress}
+                      placeholder="차량 상담 요청을 입력하세요... (예: '3000만원 예산으로 가족용 SUV 추천해주세요')"
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                    <Button 
+                      onClick={startConsultation}
+                      disabled={isLoading || !inputMessage.trim()}
+                      className="bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                    {messages.length > 0 && (
+                      <Button 
+                        onClick={resetConsultation}
+                        variant="outline"
+                        disabled={isLoading}
+                      >
+                        새 상담
+                      </Button>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="text-base sm:text-lg px-6 py-4 sm:px-8 sm:py-6 border-2 hover:bg-blue-50 transform hover:scale-105 button-hover focus-ring w-full sm:w-auto"
+              >
+                <Heart className="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-red-500" aria-hidden="true" />
+                데모 체험하기
+              </Button>
+            </div>
+          </div>
+
+          {/* AI Agents Showcase - 3 Agent System */}
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 mb-12 md:mb-16 px-4 sm:px-0">
+            {/* Data Analyst Agent - NEW */}
+            <Card className="group hover:shadow-2xl card-hover transform hover:-translate-y-2 glass-effect focus-ring" tabIndex={0}>
+              <CardHeader>
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center animate-float">
+                    <Brain className="w-6 h-6 text-white" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl text-gray-800">데이터 분석 전문가</CardTitle>
+                    <Badge className="mt-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 text-xs sm:text-sm">
+                      AI 의사결정 지원
+                    </Badge>
+                  </div>
+                </div>
+                <CardDescription className="text-gray-600">
+                  시장 데이터와 개인 프로필을 종합 분석하여 인사이트를 제공합니다
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-indigo-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">시장 트렌드 분석</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-5 h-5 text-blue-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">개인 프로필 최적화</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Shield className="w-5 h-5 text-purple-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">데이터 기반 의사결정</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Vehicle Recommendation Agent */}
+            <Card className="group hover:shadow-2xl card-hover transform hover:-translate-y-2 glass-effect focus-ring" tabIndex={0}>
+              <CardHeader>
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center animate-float" style={{ animationDelay: '0.5s' }}>
+                    <Bot className="w-6 h-6 text-white" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl text-gray-800">차량 추천 전문가</CardTitle>
+                    <Badge className="mt-1 bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs sm:text-sm">
+                      PyCaret + Gemini AI
+                    </Badge>
+                  </div>
+                </div>
+                <CardDescription className="text-gray-600">
+                  ML 엔진과 AI가 협력하여 최적의 차량을 추천합니다
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="w-5 h-5 text-blue-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">협업 필터링 추천</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">실시간 시장 데이터</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Shield className="w-5 h-5 text-purple-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">검증된 차량 큐레이션</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Finance Consultation Agent */}
+            <Card className="group hover:shadow-2xl card-hover transform hover:-translate-y-2 glass-effect focus-ring" tabIndex={0}>
+              <CardHeader>
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="w-12 h-12 bg-gradient-to-r from-teal-500 to-green-600 rounded-xl flex items-center justify-center animate-float" style={{ animationDelay: '1s' }}>
+                    <Calculator className="w-6 h-6 text-white" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl text-gray-800">금융 상담 전문가</CardTitle>
+                    <Badge className="mt-1 bg-teal-100 text-teal-700 hover:bg-teal-200 text-xs sm:text-sm">
+                      실시간 금리 연동
+                    </Badge>
+                  </div>
+                </div>
+                <CardDescription className="text-gray-600">
+                  대출, 리스, 할부 등 최적의 금융 옵션을 계산합니다
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Calculator className="w-5 h-5 text-teal-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">월 납부액 정확한 계산</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">대출/리스 비교 분석</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-5 h-5 text-orange-600" aria-hidden="true" />
+                    <span className="text-sm text-gray-700">개인 신용도 맞춤 추천</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-12 md:mb-16 px-4 sm:px-0">
+            {[
+              {
+                icon: <Sparkles className="w-8 h-8 text-yellow-500" />,
+                title: "AI 기반 개인화",
+                description: "당신만의 라이프스타일에 완벽하게 맞는 차량을 찾아드립니다"
+              },
+              {
+                icon: <Shield className="w-8 h-8 text-green-500" />,
+                title: "검증된 데이터",
+                description: "신뢰할 수 있는 차량 정보와 금융 데이터만 사용합니다"
+              },
+              {
+                icon: <Zap className="w-8 h-8 text-blue-500" />,
+                title: "빠른 의사결정",
+                description: "복잡한 차량 구매 과정을 단 몇 분 만에 해결합니다"
+              }
+            ].map((feature, index) => (
+              <Card key={index} className="text-center group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 card-hover focus-ring" tabIndex={0}>
+                <CardContent className="pt-4 sm:pt-6">
+                  <div className="flex justify-center mb-3 sm:mb-4">
+                    <div className="p-2 sm:p-3 bg-gray-50 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+                      {feature.icon}
+                    </div>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">{feature.title}</h3>
+                  <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">{feature.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center space-x-3 mb-2 md:mb-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
+                <Car className="w-4 h-4 sm:w-5 sm:h-5 text-white" aria-hidden="true" />
+              </div>
+              <span className="text-lg sm:text-xl font-bold">CarFin AI</span>
+            </div>
+            <div className="text-center md:text-right">
+              <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
+                AI 멀티에이전트 기반 차량 추천 및 금융 상담 서비스
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                CrewAI × PyCaret × OpenAI GPT-5 기술로 구동됩니다
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
