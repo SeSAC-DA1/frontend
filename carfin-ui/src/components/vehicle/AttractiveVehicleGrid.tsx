@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Container } from '@/components/design-system/layout/Container';
-import { EnhancedButton } from '@/components/design-system/forms/EnhancedButton';
+import { Button } from '@/components/ui/button';
 import {
   Heart,
   X,
@@ -317,15 +317,16 @@ export function AttractiveVehicleGrid({ userProfile, onSelectionComplete }: Attr
               </div>
             </div>
 
-            <EnhancedButton
-              variant="primary"
-              size="xl"
+            <Button
+              variant="default"
+              size="lg"
               onClick={() => setShowIntro(false)}
-              icon={<Sparkles className="w-6 h-6" />}
+              icon={<Sparkles className="w-6 h-6" aria-hidden="true" />}
               className="shadow-xl shadow-purple-200"
+              aria-label="차량 선호도 테스트 시작하기"
             >
               차량 테스트 시작하기
-            </EnhancedButton>
+            </Button>
           </div>
         </Container>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Container } from '@/components/design-system/layout/Container';
-import { EnhancedButton } from '@/components/design-system/forms/EnhancedButton';
+import { Button } from '@/components/ui/button';
 import {
   Heart,
   X,
@@ -266,15 +266,16 @@ export function ModernVehicleGrid({ userProfile, onSelectionComplete }: ModernVe
               </div>
             </div>
 
-            <EnhancedButton
-              variant="primary"
-              size="xl"
+            <Button
+              variant="default"
+              size="lg"
               onClick={() => setShowIntro(false)}
-              icon={<Sparkles className="w-6 h-6" />}
+              icon={<Sparkles className="w-6 h-6" aria-hidden="true" />}
               className="shadow-xl shadow-purple-200"
+              aria-label="차량 선택 과정 시작하기"
             >
               차량 선택 시작하기
-            </EnhancedButton>
+            </Button>
           </div>
         </Container>
       </div>
@@ -322,14 +323,15 @@ export function ModernVehicleGrid({ userProfile, onSelectionComplete }: ModernVe
                 </div>
 
                 {getSelectedCount() >= 3 && (
-                  <EnhancedButton
-                    variant="primary"
+                  <Button
+                    variant="default"
                     size="sm"
                     onClick={handleComplete}
-                    icon={<ArrowRight className="w-4 h-4" />}
+                    icon={<ArrowRight className="w-4 h-4" aria-hidden="true" />}
+                    aria-label="차량 선택 완료하고 다음 단계로 진행"
                   >
                     완료
-                  </EnhancedButton>
+                  </Button>
                 )}
               </div>
             </div>
@@ -494,15 +496,16 @@ export function ModernVehicleGrid({ userProfile, onSelectionComplete }: ModernVe
           {/* 하단 완료 버튼 */}
           {getSelectedCount() >= 3 && (
             <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-20">
-              <EnhancedButton
-                variant="primary"
-                size="xl"
+              <Button
+                variant="default"
+                size="lg"
                 onClick={handleComplete}
-                icon={<ArrowRight className="w-6 h-6" />}
+                icon={<ArrowRight className="w-6 h-6" aria-hidden="true" />}
                 className="shadow-2xl shadow-blue-300"
+                aria-label={`${getSelectedCount()}개 차량 선택을 완료하고 분석 단계로 진행하기`}
               >
                 {getSelectedCount()}개 차량 선택 완료
-              </EnhancedButton>
+              </Button>
             </div>
           )}
 

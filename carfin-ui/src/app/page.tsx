@@ -117,7 +117,7 @@ export default function CarFinPage() {
   if (currentPhase === 'analysis') {
     return (
       <EnhancedAnalysisDashboard
-        selectedVehicle={selectedVehicle}
+        selectedVehicles={selectedVehicle ? [selectedVehicle] : []}
         userFeedback={userFeedback}
         onProceedToFinance={handleAnalysisComplete}
         onSelectDifferentVehicle={handleBackToVehicles}
@@ -141,7 +141,11 @@ export default function CarFinPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-6">
         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Car className="w-8 h-8 text-blue-600" />
+          <Car
+            className="w-8 h-8 text-blue-600"
+            aria-hidden="true"
+            role="img"
+          />
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-4">
           예상치 못한 오류가 발생했습니다
@@ -152,6 +156,7 @@ export default function CarFinPage() {
         <Button
           onClick={() => setCurrentPhase('landing')}
           className="bg-blue-600 hover:bg-blue-700 text-white"
+          aria-label="메인 페이지로 돌아가기"
         >
           메인으로 돌아가기
         </Button>

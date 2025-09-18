@@ -86,13 +86,20 @@ export function EnhancedAnalysisDashboard({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVehicleIndex, setSelectedVehicleIndex] = useState(0);
 
-  const currentVehicle = selectedVehicles[selectedVehicleIndex] || selectedVehicles[0];
+  const currentVehicle = selectedVehicles && selectedVehicles.length > 0
+    ? (selectedVehicles[selectedVehicleIndex] || selectedVehicles[0])
+    : null;
 
   useEffect(() => {
     generatePersonalizedAnalysis();
   }, [selectedVehicles, userFeedback]);
 
   const generatePersonalizedAnalysis = async () => {
+    if (!currentVehicle) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     // 사용자 피드백 패턴 분석
@@ -156,6 +163,31 @@ export function EnhancedAnalysisDashboard({
 
     return summary;
   };
+
+  // 차량이 선택되지 않았을 경우
+  if (!currentVehicle) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-6">
+          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Car className="w-8 h-8 text-orange-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            선택된 차량이 없습니다
+          </h2>
+          <p className="text-gray-600 mb-6">
+            분석을 위해 먼저 차량을 선택해주세요
+          </p>
+          <button
+            onClick={onSelectDifferentVehicle}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            차량 선택하러 가기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

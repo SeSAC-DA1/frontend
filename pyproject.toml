@@ -4,17 +4,32 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
-    "crewai>=0.186.1",
+    # 🎯 Core FastAPI + Multi-Agent AI
     "fastapi>=0.116.1",
     "google-genai>=1.37.0",
-    "numpy>=2.3.3",
-    "openai>=1.107.2",
-    "pandas>=2.3.2",
-    "psycopg2-binary>=2.9.10",
+    "crewai>=0.186.1",
+    "uvicorn>=0.35.0",
     "pydantic>=2.11.9",
     "python-multipart>=0.0.20",
+
+    # 🧠 논문 기반 추천시스템 라이브러리 (PyCaret 제거)
+    "tensorflow>=2.17.0",           # Keras 포함 - Neural CF, Wide&Deep
+    "tensorflow-recommenders>=0.7.3", # Google 추천시스템 전용
+    "scikit-surprise>=1.1.3",      # Matrix Factorization 전문
+    "lightfm>=1.17",               # Hybrid CF+Content
+    "implicit>=0.7.2",             # BPR, Fast ALS
+
+    # 📊 데이터 처리 + ML
+    "numpy>=2.3.3",
+    "pandas>=2.3.2",
     "scikit-learn>=1.7.2",
+    "scipy>=1.11.0",
+
+    # 🗄️ 데이터베이스
     "sqlalchemy>=2.0.43",
+    "psycopg2-binary>=2.9.10",
+
+    # 🛠️ 기타 유틸리티
+    "openai>=1.107.2",
     "trafilatura>=2.0.0",
-    "uvicorn>=0.35.0",
 ]

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Container } from '@/components/design-system/layout/Container';
-import { EnhancedButton } from '@/components/design-system/forms/EnhancedButton';
+import { Button } from '@/components/ui/button';
 import {
   Car,
   ArrowRight,
@@ -140,13 +140,14 @@ export function ModernSignupForm({ onSignupComplete, onSkip }: ModernSignupFormP
                 </div>
               </div>
 
-              <EnhancedButton
+              <Button
                 variant="ghost"
                 size="sm"
                 onClick={onSkip}
+                aria-label="회원가입 건너뛰고 게스트로 시작하기"
               >
                 건너뛰기
-              </EnhancedButton>
+              </Button>
             </div>
 
             {/* 진행률 바 */}
@@ -358,27 +359,29 @@ export function ModernSignupForm({ onSignupComplete, onSkip }: ModernSignupFormP
             {/* 네비게이션 버튼 */}
             <div className="flex items-center gap-4 mt-12">
               {currentStep > 1 && (
-                <EnhancedButton
+                <Button
                   variant="outline"
                   size="lg"
                   onClick={handleBack}
-                  icon={<ArrowLeft className="w-5 h-5" />}
+                  icon={<ArrowLeft className="w-5 h-5" aria-hidden="true" />}
+                  aria-label="이전 단계로 돌아가기"
                 >
                   이전
-                </EnhancedButton>
+                </Button>
               )}
 
-              <EnhancedButton
-                variant="primary"
+              <Button
+                variant="default"
                 size="lg"
-                fullWidth
+                className="flex-1"
                 onClick={handleNext}
                 disabled={!isStepValid()}
-                icon={currentStep === 4 ? <Sparkles className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
+                icon={currentStep === 4 ? <Sparkles className="w-5 h-5" aria-hidden="true" /> : <ArrowRight className="w-5 h-5" aria-hidden="true" />}
                 iconPosition="right"
+                aria-label={currentStep === 4 ? 'AI 상담 시작하기' : '다음 단계로 진행하기'}
               >
                 {currentStep === 4 ? 'AI 상담 시작하기' : '다음'}
-              </EnhancedButton>
+              </Button>
             </div>
           </div>
         </div>
